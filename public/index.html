@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Basic GoJS Setup</title>
+    <link href="assets/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/gojs/prism.min.css" rel="stylesheet"/>
+    <link href="style.css" rel="stylesheet"/>
+</head>
+<body>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12 text-center">
+            <h1>Basic GoJS Setup</h1>
+            <p>A simple example of how to use GoJS</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-1">
+            <div id="myPaletteDiv" class="column">Column 1</div>
+        </div>
+        <div class="col-md-9">
+            <div id="myDiagramDiv" class="column">Column 2</div>
+        </div>
+        <div class="col-md-2">
+            <div id="myDetailsDiv" class="column">
+                <div>
+                    <button id="SaveButton" onclick="save()">Save</button>
+                    <button onclick="load()">Load</button>
+                    <p>Diagram Model saved in JSON format:</p>
+                </div>
+                <textarea id="mySavedModel">{ "class": "go.GraphLinksModel",
+  "linkFromPortIdProperty": "fromPort",
+  "linkToPortIdProperty": "toPort",
+  "pointsDigits": 1,
+  "nodeDataArray": [
+ ],
+  "linkDataArray": [
+ ]}
+    </textarea>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap 5 JS and Popper.js CDN -->
+<script src="assets/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="assets/gojs/go.js"></script>
+<script src="assets/gojs/prism.min.js"></script>
+<script src="assets/gojs/Figures.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

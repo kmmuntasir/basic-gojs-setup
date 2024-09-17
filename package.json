@@ -1,0 +1,24 @@
+{
+  "name": "basic-gojs-setup",
+  "version": "1.0.0",
+  "description": "A simple project to demonstrate a basic setup of GoJS diagram UI",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kmmuntasir/basic-gojs-setup.git"
+  },
+  "author": "Muntasir Billah Munna",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kmmuntasir/basic-gojs-setup/issues"
+  },
+  "homepage": "https://github.com/kmmuntasir/basic-gojs-setup#readme",
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}

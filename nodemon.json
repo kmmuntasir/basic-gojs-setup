@@ -1,0 +1,5 @@
+{
+  "watch": ["app.js", "public/"],
+  "ext": "js,html,css,json",
+  "ignore": ["public/images/*"]
+}
