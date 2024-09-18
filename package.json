@@ -20,5 +20,8 @@
   "homepage": "https://github.com/kmmuntasir/basic-gojs-setup#readme",
   "dependencies": {
     "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.5"
   }
 }
