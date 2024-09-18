@@ -2,303 +2,275 @@ const diagramDivId = 'myDiagramDiv';
 const paletteDivId = 'myPaletteDiv';
 
 function init() {
-    myDiagram = new go.Diagram(diagramDivId, { // must name or refer to the DIV HTML element
-            grid: new go.Panel('Grid')
-                .add(
-                    new go.Shape('LineH', { stroke: 'lightgray', strokeWidth: 0.5 }),
-                    new go.Shape('LineH', { stroke: 'gray', strokeWidth: 0.5, interval: 10 }),
-                    new go.Shape('LineV', { stroke: 'lightgray', strokeWidth: 0.5 }),
-                    new go.Shape('LineV', { stroke: 'gray', strokeWidth: 0.5, interval: 10 })
-                ),
-            'draggingTool.dragsLink': true,
-            'draggingTool.isGridSnapEnabled': true,
-            'linkingTool.isUnconnectedLinkValid': true,
-            'linkingTool.portGravity': 20,
-            'relinkingTool.isUnconnectedLinkValid': true,
-            'relinkingTool.portGravity': 20,
-            'relinkingTool.fromHandleArchetype': new go.Shape('Diamond', {
-                segmentIndex: 0,
-                cursor: 'pointer',
-                desiredSize: new go.Size(8, 8),
-                fill: 'tomato',
-                stroke: 'darkred'
+    var $ = go.GraphObject.make; // shorthand for GoJS graph object creation
+
+    // Initialize the Diagram
+    myDiagram = $(go.Diagram, "myDiagramDiv",
+        {
+            initialContentAlignment: go.Spot.Center,
+            "LinkDrawn": showLinkLabel,  // listener to show link labels
+            "LinkRelinked": showLinkLabel,
+            scrollsPageOnFocus: false,
+            grid: $(go.Panel, "Grid",  // add a grid for snapping and alignment
+                $(go.Shape, "LineH", { stroke: "lightgray", strokeWidth: 0.5 }),
+                $(go.Shape, "LineH", { stroke: "gray", strokeWidth: 0.5, interval: 10 }),
+                $(go.Shape, "LineV", { stroke: "lightgray", strokeWidth: 0.5 }),
+                $(go.Shape, "LineV", { stroke: "gray", strokeWidth: 0.5, interval: 10 })
+            ),
+            allowDrop: true,  // enable drag and drop from the Palette
+            "draggingTool.dragsLink": true,
+            "draggingTool.isGridSnapEnabled": true,
+            "linkingTool.isUnconnectedLinkValid": true,
+            "linkingTool.portGravity": 20,
+            "relinkingTool.isUnconnectedLinkValid": true,
+            "relinkingTool.portGravity": 20,
+            "relinkingTool.fromHandleArchetype": $(go.Shape, "Diamond", {
+                segmentIndex: 0, cursor: "pointer", desiredSize: new go.Size(8, 8),
+                fill: "tomato", stroke: "darkred"
             }),
-            'relinkingTool.toHandleArchetype': new go.Shape('Diamond', {
-                segmentIndex: -1,
-                cursor: 'pointer',
-                desiredSize: new go.Size(8, 8),
-                fill: 'darkred',
-                stroke: 'tomato'
+            "relinkingTool.toHandleArchetype": $(go.Shape, "Diamond", {
+                segmentIndex: -1, cursor: "pointer", desiredSize: new go.Size(8, 8),
+                fill: "darkred", stroke: "tomato"
             }),
-            'linkReshapingTool.handleArchetype': new go.Shape('Diamond', {
+            "linkReshapingTool.handleArchetype": $(go.Shape, "Diamond", {
                 desiredSize: new go.Size(7, 7),
-                fill: 'lightblue',
-                stroke: 'deepskyblue'
+                fill: "lightblue", stroke: "deepskyblue"
             }),
-            'rotatingTool.handleAngle': 270,
-            'rotatingTool.handleDistance': 30,
-            'rotatingTool.snapAngleMultiple': 15,
-            'rotatingTool.snapAngleEpsilon': 15,
-            'undoManager.isEnabled': true
+            "undoManager.isEnabled": true  // enable undo and redo
         }
     );
 
-    // when the document is modified, add a "*" to the title and enable the "Save" button
-    myDiagram.addDiagramListener('Modified', (e) => {
-        var button = document.getElementById('SaveButton');
+    // Update document title when the diagram is modified
+    myDiagram.addDiagramListener("Modified", function (e) {
+        var button = document.getElementById("SaveButton");
         if (button) button.disabled = !myDiagram.isModified;
-        var idx = document.title.indexOf('*');
-        if (myDiagram.isModified) {
-            if (idx < 0) document.title += '*';
-        } else {
-            if (idx >= 0) document.title = document.title.slice(0, idx);
-        }
+        var idx = document.title.indexOf("*");
+        document.title = myDiagram.isModified ? (idx < 0 ? document.title + "*" : document.title) : document.title.substr(0, idx);
     });
 
-    // Define a function for creating a "port" that is normally transparent.
-    // The "name" is used as the GraphObject.portId, the "spot" is used to control how links connect
-    // and where the port is positioned on the node, and the boolean "output" and "input" arguments
-    // control whether the user can draw links from or to the port.
-    function makePort(name, spot, output, input) {
-        // the port is basically just a small transparent circle
-        return new go.Shape('Circle', {
-            fill: null, // not seen, by default; set to a translucent gray by showSmallPorts, defined below
-            stroke: null,
-            desiredSize: new go.Size(7, 7),
-            alignment: spot, // align the port on the main Shape
-            alignmentFocus: spot, // just inside the Shape
-            portId: name, // declare this object to be a "port"
-            fromSpot: spot,
-            toSpot: spot, // declare where links may connect at this port
-            fromLinkable: output,
-            toLinkable: input, // declare whether the user may draw links to/from here
-            cursor: 'pointer' // show a different cursor to indicate potential link point
-        });
+    // Define a reusable node style
+    function nodeStyle() {
+        return [
+            new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+            { locationSpot: go.Spot.Center }
+        ];
     }
 
-    var nodeSelectionAdornmentTemplate = new go.Adornment('Auto')
-        .add(
-            new go.Shape({ fill: null, stroke: 'deepskyblue', strokeWidth: 1.5, strokeDashArray: [4, 2] }),
-            new go.Placeholder()
-        );
-
-    var nodeResizeAdornmentTemplate = new go.Adornment('Spot', { locationSpot: go.Spot.Right })
-        .add(
-            new go.Placeholder(),
-            new go.Shape({ alignment: go.Spot.TopLeft, cursor: 'nw-resize', desiredSize: new go.Size(6, 6), fill: 'lightblue', stroke: 'deepskyblue' }),
-            new go.Shape({ alignment: go.Spot.Top, cursor: 'n-resize', desiredSize: new go.Size(6, 6), fill: 'lightblue', stroke: 'deepskyblue' }),
-            new go.Shape({ alignment: go.Spot.TopRight, cursor: 'ne-resize', desiredSize: new go.Size(6, 6), fill: 'lightblue', stroke: 'deepskyblue' }),
-            new go.Shape({ alignment: go.Spot.Left, cursor: 'w-resize', desiredSize: new go.Size(6, 6), fill: 'lightblue', stroke: 'deepskyblue' }),
-            new go.Shape({ alignment: go.Spot.Right, cursor: 'e-resize', desiredSize: new go.Size(6, 6), fill: 'lightblue', stroke: 'deepskyblue' }),
-            new go.Shape({ alignment: go.Spot.BottomLeft, cursor: 'se-resize', desiredSize: new go.Size(6, 6), fill: 'lightblue', stroke: 'deepskyblue' }),
-            new go.Shape({ alignment: go.Spot.Bottom, cursor: 's-resize', desiredSize: new go.Size(6, 6), fill: 'lightblue', stroke: 'deepskyblue' }),
-            new go.Shape({ alignment: go.Spot.BottomRight, cursor: 'sw-resize', desiredSize: new go.Size(6, 6), fill: 'lightblue', stroke: 'deepskyblue' })
-        );
-
-    var nodeRotateAdornmentTemplate = new go.Adornment({
-        locationSpot: go.Spot.Center,
-        locationObjectName: 'ELLIPSE'
-    })
-        .add(
-            new go.Shape('Ellipse', { name: 'ELLIPSE', cursor: 'pointer', desiredSize: new go.Size(7, 7), fill: 'lightblue', stroke: 'deepskyblue' }),
-            new go.Shape({ geometryString: 'M3.5 7 L3.5 30', isGeometryPositioned: true, stroke: 'deepskyblue', strokeWidth: 1.5, strokeDashArray: [4, 2] })
-        );
-
-    myDiagram.nodeTemplate = new go.Node('Spot', {
-        locationSpot: go.Spot.Center,
-        selectable: true,
-        selectionAdornmentTemplate: nodeSelectionAdornmentTemplate,
-        resizable: true,
-        resizeObjectName: 'PANEL',
-        resizeAdornmentTemplate: nodeResizeAdornmentTemplate,
-        rotatable: true,
-        rotateAdornmentTemplate: nodeRotateAdornmentTemplate,
-        // handle mouse enter/leave events to show/hide the ports
-        mouseEnter: (e, node) => showSmallPorts(node, true),
-        mouseLeave: (e, node) => showSmallPorts(node, false)
-    })
-        .bindTwoWay('location', 'loc', go.Point.parse, go.Point.stringify)
-        .bindTwoWay('angle')
-        .add(
-            // the main object is a Panel that surrounds a TextBlock with a Shape
-            new go.Panel('Auto', { name: 'PANEL' })
-                .bindTwoWay('desiredSize', 'size', go.Size.parse, go.Size.stringify)
-                .add(
-                    new go.Shape('Rectangle', { // default figure
-                        portId: '', // the default port: if no spot on link data, use closest side
-                        fromLinkable: true,
-                        toLinkable: true,
-                        cursor: 'pointer',
-                        fill: 'white', // default color
-                        strokeWidth: 2
-                    })
-                        .bind('figure')
-                        .bind('fill'),
-                    new go.TextBlock({
-                        font: 'bold 10pt Helvetica, Arial, sans-serif',
-                        margin: 8,
-                        maxSize: new go.Size(160, NaN),
-                        wrap: go.Wrap.Fit,
-                        editable: true
-                    }).bindTwoWay('text')
-                ),
-            // four small named ports, one on each side:
-            makePort('T', go.Spot.Top, false, true),
-            makePort('L', go.Spot.Left, true, true),
-            makePort('R', go.Spot.Right, true, true),
-            makePort('B', go.Spot.Bottom, true, false)
-        );
-
-    function showSmallPorts(node, show) {
-        node.ports.each((port) => {
-            if (port.portId !== '') {
-                // don't change the default port, which is the big shape
-                port.fill = show ? 'rgba(0,0,0,.3)' : null;
+    // Create a port function that returns a configurable port
+    function makePort(name, align, spot, output, input) {
+        return $(go.Shape, 'Circle',
+            {
+                fill: "transparent",  // transparent until hovered over
+                strokeWidth: 0,  // no border
+                width: 10,  // width for side ports
+                height: 10,  // height for top/bottom ports
+                alignment: align,  // alignment on the node
+                stretch: go.GraphObject.Vertical,
+                portId: name,  // name of the port
+                fromSpot: spot,  // where links can connect
+                fromLinkable: output,  // whether links can be drawn from this port
+                toSpot: spot,  // where links can connect
+                toLinkable: input,  // whether links can be connected here
+                cursor: "pointer",  // cursor change to indicate a valid port
+                mouseEnter: (e, port) => { if (!e.diagram.isReadOnly) port.fill = "rgba(255,0,255,0.5)"; },
+                mouseLeave: (e, port) => { port.fill = "transparent"; }
             }
-        });
+        );
     }
 
-    var linkSelectionAdornmentTemplate = new go.Adornment('Link')
-        .add(
-            new go.Shape({
-                isPanelMain: true, // isPanelMain declares that this Shape shares the Link.geometry
-                fill: null,
-                stroke: 'deepskyblue',
-                strokeWidth: 0 // use selection object's strokeWidth
-            })
-        );
+    function textStyle() {
+        return { font: "bold 11pt Helvetica, Arial, sans-serif", stroke: "whitesmoke" };
+    }
 
-    myDiagram.linkTemplate = new go.Link({ // the whole link panel
-        selectable: true,
-        selectionAdornmentTemplate: linkSelectionAdornmentTemplate,
-        relinkableFrom: true,
-        relinkableTo: true,
-        reshapable: true,
-        routing: go.Routing.AvoidsNodes,
-        curve: go.Curve.JumpOver,
-        corner: 5,
-        toShortLength: 4
-    })
-        .bindTwoWay('points')
-        .add(
-            new go.Shape({ // the link path shape
-                isPanelMain: true,
-                strokeWidth: 2
-            }),
-            new go.Shape({ // the arrowhead
-                toArrow: 'Standard',
-                stroke: null
-            }),
-            new go.Panel('Auto')
-                .bindObject('visible', 'isSelected')
-                .add(
-                    new go.Shape('RoundedRectangle', { // the link shape
-                        fill: '#F8F8F8',
-                        stroke: null
-                    }),
-                    new go.TextBlock({
-                        textAlign: 'center',
-                        font: '10pt helvetica, arial, sans-serif',
-                        stroke: '#919191',
-                        margin: 2,
-                        minSize: new go.Size(10, NaN),
-                        editable: true
-                    }).bindTwoWay('text')
+    // Define default node template
+    myDiagram.nodeTemplateMap.add("",
+        $(go.Node, "Table", nodeStyle(),
+            $(go.Panel, "Auto",
+                $(go.Shape, "Rectangle", { fill: "#00A9C9", strokeWidth: 0 }),
+                $(go.TextBlock, textStyle(),
+                    { margin: 8, maxSize: new go.Size(160, NaN), wrap: go.TextBlock.WrapFit, editable: true },
+                    new go.Binding("text").makeTwoWay()
                 )
+            ),
+            makePort("T", go.Spot.Top, go.Spot.TopSide, false, true),
+            makePort("L", go.Spot.Left, go.Spot.LeftSide, true, true),
+            makePort("R", go.Spot.Right, go.Spot.RightSide, true, true),
+            makePort("B", go.Spot.Bottom, go.Spot.BottomSide, true, false)
+        )
+    );
+
+    // Add custom nodes (step, io, condition, etc.) similar to above
+
+    // Add custom nodes (step, io, condition, etc.) similar to above
+
+
+
+    myDiagram.nodeTemplateMap.add("start",
+        $(go.Node, "Table", nodeStyle(),
+            $(go.Panel, "Auto",
+                $(go.Shape, "Circle",
+                    { minSize: new go.Size(40, 40), fill: "#00AD5F", strokeWidth: 1 }),
+                $(go.TextBlock, "Start", textStyle(),
+                    new go.Binding("text"))
+            ),
+            // three named ports, one on each side except the top, all output only:
+            makePort("L", go.Spot.Left, go.Spot.Left, true, false),
+            makePort("R", go.Spot.Right, go.Spot.Right, true, false),
+            makePort("B", go.Spot.Bottom, go.Spot.Bottom, true, false)
+        ));
+
+// Step Node (Default task node)
+    myDiagram.nodeTemplateMap.add("step",
+        $(go.Node, "Table", nodeStyle(),
+            $(go.Panel, "Auto",
+                $(go.Shape, "Rectangle",
+                    { fill: "#00A9C9", strokeWidth: 0, minSize: new go.Size(80, 40) }),
+                $(go.TextBlock, textStyle(),
+                    { margin: 8, editable: true },
+                    new go.Binding("text").makeTwoWay()
+                )
+            ),
+            makePort("T", go.Spot.Top, go.Spot.TopSide, false, true),
+            makePort("L", go.Spot.Left, go.Spot.LeftSide, true, true),
+            makePort("R", go.Spot.Right, go.Spot.RightSide, true, true),
+            makePort("B", go.Spot.Bottom, go.Spot.BottomSide, true, false)
+        )
+    );
+
+// I/O Node (e.g., for inputs/outputs in flowcharts)
+    myDiagram.nodeTemplateMap.add("io",
+        $(go.Node, "Table", nodeStyle(),
+            $(go.Panel, "Auto",
+                $(go.Shape, "Parallelogram1",  // Use parallelogram for I/O
+                    { fill: "#F1C232", strokeWidth: 0, minSize: new go.Size(40, 40) }),
+                $(go.TextBlock, textStyle(),
+                    { margin: 8, editable: true },
+                    new go.Binding("text").makeTwoWay()
+                )
+            ),
+            makePort("T", go.Spot.Top, go.Spot.TopSide, false, true),
+            makePort("L", go.Spot.Left, go.Spot.LeftSide, true, true),
+            makePort("R", go.Spot.Right, go.Spot.RightSide, true, true),
+            makePort("B", go.Spot.Bottom, go.Spot.BottomSide, true, false)
+        )
+    );
+
+// Condition Node (Decision)
+    myDiagram.nodeTemplateMap.add("condition",
+        $(go.Node, "Table", nodeStyle(),
+            $(go.Panel, "Auto",
+                $(go.Shape, "Diamond",  // Diamond shape for decisions
+                    { fill: "#FFCC00", strokeWidth: 0, minSize: new go.Size(40, 20) }),
+                $(go.TextBlock, textStyle(),
+                    { margin: 8, editable: true },
+                    new go.Binding("text").makeTwoWay()
+                )
+            ),
+            makePort("T", go.Spot.Top, go.Spot.TopSide, false, true),
+            makePort("L", go.Spot.Left, go.Spot.LeftSide, true, true),
+            makePort("R", go.Spot.Right, go.Spot.RightSide, true, true),
+            makePort("B", go.Spot.Bottom, go.Spot.BottomSide, true, false)
+        )
+    );
+
+// End Node (Terminator)
+    myDiagram.nodeTemplateMap.add("end",
+        $(go.Node, "Table", nodeStyle(),
+            $(go.Panel, "Auto",
+                $(go.Shape, "Ellipse",  // Use ellipse shape for "End"
+                    { fill: "#DC3912", strokeWidth: 0, minSize: new go.Size(60, 60) }),
+                $(go.TextBlock, textStyle(),
+                    { margin: 8, editable: true },
+                    new go.Binding("text").makeTwoWay()
+                )
+            ),
+            makePort("T", go.Spot.Top, go.Spot.TopSide, false, true),
+            makePort("L", go.Spot.Left, go.Spot.LeftSide, true, true),
+            makePort("R", go.Spot.Right, go.Spot.RightSide, true, true),
+            makePort("B", go.Spot.Bottom, go.Spot.BottomSide, true, false)
+        )
+    );
+
+// Comment Node
+    myDiagram.nodeTemplateMap.add("comment",
+        $(go.Node, "Auto", nodeStyle(),
+            $(go.Shape, "File",  // Use File shape for comments
+                { fill: "#E3F2FD", strokeWidth: 0 }),
+            $(go.TextBlock, "Comment",  // Default text in comment nodes
+                {
+                    margin: 8,
+                    maxSize: new go.Size(200, NaN),
+                    wrap: go.TextBlock.WrapFit,
+                    textAlign: "center",
+                    editable: true,
+                    font: "italic 10pt sans-serif",
+                    stroke: "#36454F"
+                },
+                new go.Binding("text").makeTwoWay()
+            )
+        )
+    );
+
+    // Link Template
+    myDiagram.linkTemplate =
+        $(go.Link,
+            {
+                routing: go.Link.AvoidsNodes,
+                curve: go.Link.JumpOver,
+                corner: 5, toShortLength: 4,
+                relinkableFrom: true, relinkableTo: true, reshapable: true, resegmentable: true,
+                mouseEnter: (e, link) => { link.findObject("HIGHLIGHT").stroke = "rgba(30,144,255,0.2)"; },
+                mouseLeave: (e, link) => { link.findObject("HIGHLIGHT").stroke = "transparent"; },
+                selectionAdorned: false
+            },
+            new go.Binding("points").makeTwoWay(),
+            $(go.Shape, { isPanelMain: true, strokeWidth: 8, stroke: "transparent", name: "HIGHLIGHT" }),
+            $(go.Shape, { isPanelMain: true, stroke: "gray", strokeWidth: 2 },
+                new go.Binding("stroke", "isSelected", sel => sel ? "dodgerblue" : "gray").ofObject()
+            ),
+            $(go.Shape, { toArrow: "standard", strokeWidth: 0, fill: "gray" }),
+            $(go.Panel, "Auto",
+                { visible: false, name: "LABEL", segmentIndex: 2, segmentFraction: 0.5 },
+                new go.Binding("visible", "visible").makeTwoWay(),
+                $(go.Shape, "RoundedRectangle", { fill: "#F8F8F8", strokeWidth: 0 }),
+                $(go.TextBlock, "Yes", { textAlign: "center", font: "10pt helvetica, arial, sans-serif", stroke: "#333333", editable: true },
+                    new go.Binding("text").makeTwoWay()
+                )
+            )
         );
 
-    // Add a selection changed listener
-    myDiagram.addDiagramListener("ChangedSelection", function(e) {
-        var selectedNode = myDiagram.selection.first();
-        if (selectedNode instanceof go.Node) {
-            // Pass the key of the selected node to your function
-            nodeSelected(selectedNode.data.key);
-        }
-    });
-
-    // Function to handle node selection
-    function nodeSelected(nodeKey) {
-        console.log("Selected Node Key: " + nodeKey);
-        // Add your logic here to process the node key
+    // Show link label based on the condition node
+    function showLinkLabel(e) {
+        var label = e.subject.findObject("LABEL");
+        if (label !== null) label.visible = (e.subject.fromNode.data.category === "condition");
     }
 
-    load(); // load an initial diagram from some JSON text
+    // Define the Palette (Toolbox)
+    myPalette = $(go.Palette, "myPaletteDiv",
+        {
+            nodeTemplateMap: myDiagram.nodeTemplateMap,  // share the templates
+            model: new go.GraphLinksModel([
+                { category: "start", text: "Start" },
+                { category: "step", text: "Step" },
+                { category: "io", text: "Input/Output" },
+                { category: "condition", text: "Condition" },
+                { category: "end", text: "End" },
+                { category: "comment", text: "Comment" }
+            ])
+        }
+    );
 
-    // initialize the Palette that is on the left side of the page
-    myPalette = new go.Palette(paletteDivId, {
-        maxSelectionCount: 1,
-        nodeTemplateMap: myDiagram.nodeTemplateMap, // share the templates used by myDiagram
-        // simplify the link template, just in this Palette
-        linkTemplate: new go.Link({
-            // because the GridLayout.alignment is Location and the nodes have locationSpot == Spot.Center,
-            // to line up the Link in the same manner we have to pretend the Link has the same location spot
-            locationSpot: go.Spot.Center,
-            selectionAdornmentTemplate: new go.Adornment('Link', {
-                locationSpot: go.Spot.Center
-            })
-                .add(
-                    new go.Shape({
-                        isPanelMain: true,
-                        fill: null,
-                        stroke: 'deepskyblue',
-                        strokeWidth: 0
-                    }),
-                    new go.Shape({ // the arrowhead
-                        toArrow: 'Standard',
-                        stroke: null
-                    })
-                ),
-            routing: go.Routing.AvoidsNodes,
-            curve: go.Curve.JumpOver,
-            corner: 5,
-            toShortLength: 4
-        })
-            .bind('points')
-            .add(
-                new go.Shape({ // the link path shape
-                    isPanelMain: true,
-                    strokeWidth: 2
-                }),
-                new go.Shape({ // the arrowhead
-                    toArrow: 'Standard',
-                    stroke: null
-                })
-            ),
-        model: new go.GraphLinksModel(
-            [
-                // specify the contents of the Palette
-                { text: 'Start', figure: 'Ellipse', size: '75 75', fill: '#00AD5F' },
-                { text: 'Step' },
-                { text: 'DB', figure: 'Database', fill: 'lightgray' },
-                { text: '???', figure: 'Diamond', fill: 'lightskyblue' },
-                { text: 'End', figure: 'Ellipse', size: '75 75', fill: '#CE0620' },
-                { text: 'Comment', figure: 'RoundedRectangle', fill: 'lightyellow' }
-            ],
-            [
-                // the Palette also has a disconnected Link, which the user can drag-and-drop
-                { points: new go.List(/*go.Point*/).addAll([new go.Point(0, 0), new go.Point(30, 0), new go.Point(30, 40), new go.Point(60, 40)]) }
-            ]
-        )
-    });
+    // Load an initial diagram from JSON data (replace `load_graph()` if necessary)
+    load();  // function that loads the diagram model
 }
 
-// Show the diagram's model in JSON format that the user may edit
 function save() {
-    saveDiagramProperties(); // do this first, before writing to JSON
-    document.getElementById('mySavedModel').value = myDiagram.model.toJson();
+    document.getElementById("mySavedModel").value = myDiagram.model.toJson();
     myDiagram.isModified = false;
 }
 function load() {
-    myDiagram.model = go.Model.fromJson(document.getElementById('mySavedModel').value);
-    loadDiagramProperties(); // do this after the Model.modelData has been brought into memory
+    myDiagram.model = go.Model.fromJson(document.getElementById("mySavedModel").value);
 }
 
-function saveDiagramProperties() {
-    myDiagram.model.modelData.position = go.Point.stringify(myDiagram.position);
-}
-function loadDiagramProperties(e) {
-    // set Diagram.initialPosition, not Diagram.position, to handle initialization side-effects
-    var pos = myDiagram.model.modelData.position;
-    if (pos) myDiagram.initialPosition = go.Point.parse(pos);
-}
+
 window.addEventListener('DOMContentLoaded', init);
